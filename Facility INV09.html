@@ -1,0 +1,617 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Facility Inventory</title>
+    <!-- นำเข้า Tailwind CSS เพื่อการจัดหน้าจอที่สวยงามและรองรับมือถือ -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" rel="stylesheet">
+    <!-- นำเข้า Chart.js สำหรับสร้างกราฟ -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; }
+    </style>
+</head>
+<body class="bg-yellow-50 p-4 sm:p-8">
+
+    <!-- Header and Add Product Button -->
+    <div class="max-w-7xl mx-auto mb-8 flex flex-col sm:flex-row justify-between items-center space-y-4 sm:space-y-0">
+        <h1 class="text-3xl sm:text-4xl font-bold text-gray-800">Facility Inventory</h1>
+        <button onclick="openProductFormModal()" class="bg-yellow-500 text-white font-medium py-2 px-4 rounded-lg shadow-md hover:bg-yellow-600 transition-colors w-full sm:w-auto">
+            <i class="fas fa-plus mr-2"></i>เพิ่มสินค้าใหม่
+        </button>
+    </div>
+
+    <!-- Main Content Area -->
+    <div class="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-8">
+        
+        <!-- Inventory Section -->
+        <div class="lg:col-span-2 bg-white rounded-xl shadow-lg p-6">
+            <div class="flex flex-col sm:flex-row justify-between items-center mb-6 space-y-4 sm:space-y-0">
+                <h2 class="text-2xl font-semibold text-gray-700">รายการสินค้า</h2>
+                <!-- Product Filter and Search -->
+                <div class="flex flex-col sm:flex-row items-center space-y-2 sm:space-y-0 sm:space-x-4 w-full sm:w-auto">
+                    <div class="flex items-center space-x-2 w-full sm:w-auto">
+                        <label for="category-filter" class="text-gray-600 font-medium whitespace-nowrap">หมวดหมู่:</label>
+                        <select id="category-filter" onchange="renderProducts()" class="p-2 border border-gray-300 rounded-md w-full">
+                            <option value="all">ทั้งหมด</option>
+                        </select>
+                    </div>
+                    <div class="flex items-center space-x-2 w-full sm:w-auto">
+                        <label for="search-input" class="text-gray-600 font-medium whitespace-nowrap">ค้นหา:</label>
+                        <!-- oninput="renderProducts()" จะเรียกฟังก์ชัน renderProducts ทุกครั้งที่มีการพิมพ์หรือลบตัวอักษร -->
+                        <input type="text" id="search-input" oninput="renderProducts()" placeholder="ชื่อสินค้า, ชั้น/ล็อค" class="p-2 border border-gray-300 rounded-md w-full">
+                    </div>
+                </div>
+            </div>
+            <div id="product-list" class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- Product cards will be rendered here by JavaScript -->
+            </div>
+        </div>
+
+        <!-- Dashboard and Transaction History Section -->
+        <div class="lg:col-span-1 flex flex-col space-y-8">
+            <!-- Dashboard Chart -->
+            <div class="bg-white rounded-xl shadow-lg p-6">
+                <h2 class="text-2xl font-semibold text-gray-700 mb-4">Dashboard การเบิกสินค้า</h2>
+                <canvas id="withdrawalsChart" class="w-full"></canvas>
+            </div>
+
+            <!-- Transaction History -->
+            <div class="bg-white rounded-xl shadow-lg p-6 flex-1">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-2xl font-semibold text-gray-700">ประวัติการทำรายการ</h2>
+                    <button onclick="exportTransactionsToCsv()" class="bg-yellow-500 text-white text-sm font-medium py-1 px-3 rounded-md hover:bg-yellow-600 transition-colors">
+                        <i class="fas fa-file-excel mr-1"></i>Export
+                    </button>
+                </div>
+                <div id="transaction-history" class="h-64 overflow-y-auto space-y-4">
+                    <!-- Transaction history will be rendered here by JavaScript -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Custom Modal for Stock Operations -->
+    <div id="stock-modal" class="fixed inset-0 bg-gray-600 bg-opacity-50 hidden items-center justify-center p-4">
+        <div class="bg-white rounded-xl shadow-lg p-6 max-w-sm w-full space-y-4">
+            <h3 id="stock-modal-title" class="text-xl font-semibold"></h3>
+            <div class="space-y-2">
+                <label for="stock-modal-quantity" class="block text-sm font-medium text-gray-700">จำนวน:</label>
+                <input type="number" id="stock-modal-quantity" class="w-full p-2 border border-gray-300 rounded-md">
+                <label for="stock-modal-name" class="block text-sm font-medium text-gray-700">ชื่อผู้ทำรายการ:</label>
+                <input type="text" id="stock-modal-name" class="w-full p-2 border border-gray-300 rounded-md">
+            </div>
+            <div class="flex justify-end space-x-2">
+                <button id="stock-modal-cancel-btn" class="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300">ยกเลิก</button>
+                <button id="stock-modal-confirm-btn" class="px-4 py-2 bg-yellow-500 text-white rounded-md hover:bg-yellow-600">ยืนยัน</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Custom Modal for Adding/Editing Products -->
+    <div id="product-form-modal" class="fixed inset-0 bg-gray-600 bg-opacity-50 hidden items-center justify-center p-4">
+        <div class="bg-white rounded-xl shadow-lg p-6 max-w-lg w-full space-y-4">
+            <h3 id="product-form-modal-title" class="text-xl font-semibold">เพิ่ม/แก้ไขสินค้า</h3>
+            <form id="product-form" class="space-y-3">
+                <input type="hidden" id="product-id-input">
+                <div>
+                    <label for="item-code" class="block text-sm font-medium text-gray-700">รหัสสินค้า:</label>
+                    <input type="text" id="item-code" class="w-full p-2 border border-gray-300 rounded-md">
+                </div>
+                <div>
+                    <label for="item-name" class="block text-sm font-medium text-gray-700">ชื่อสินค้า / รุ่น:</label>
+                    <input type="text" id="item-name" class="w-full p-2 border border-gray-300 rounded-md">
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label for="system" class="block text-sm font-medium text-gray-700">ระบบ:</label>
+                        <input type="text" id="system" class="w-full p-2 border border-gray-300 rounded-md">
+                    </div>
+                    <div>
+                        <label for="shelf-lock-no" class="block text-sm font-medium text-gray-700">ชั้น/ล็อค:</label>
+                        <input type="text" id="shelf-lock-no" class="w-full p-2 border border-gray-300 rounded-md">
+                    </div>
+                </div>
+                <div>
+                    <label for="image-url" class="block text-sm font-medium text-gray-700">URL รูปภาพ:</label>
+                    <input type="text" id="image-url" class="w-full p-2 border border-gray-300 rounded-md">
+                </div>
+                <div class="grid grid-cols-3 gap-4">
+                    <div>
+                        <label for="unit" class="block text-sm font-medium text-gray-700">หน่วยนับ:</label>
+                        <input type="text" id="unit" class="w-full p-2 border border-gray-300 rounded-md">
+                    </div>
+                    <div>
+                        <label for="min-level" class="block text-sm font-medium text-gray-700">ระดับต่ำสุด (Min):</label>
+                        <input type="number" id="min-level" class="w-full p-2 border border-gray-300 rounded-md">
+                    </div>
+                    <div>
+                        <label for="max-level" class="block text-sm font-medium text-gray-700">ระดับสูงสุด (Max):</label>
+                        <input type="number" id="max-level" class="w-full p-2 border border-gray-300 rounded-md">
+                    </div>
+                </div>
+                <div>
+                    <label for="current-stock" class="block text-sm font-medium text-gray-700">จำนวนคงเหลือ:</label>
+                    <input type="number" id="current-stock" class="w-full p-2 border border-gray-300 rounded-md">
+                </div>
+                <!-- New: Price per Unit -->
+                <div>
+                    <label for="price-per-unit" class="block text-sm font-medium text-gray-700">ราคา/หน่วย:</label>
+                    <input type="number" step="0.01" id="price-per-unit" class="w-full p-2 border border-gray-300 rounded-md">
+                </div>
+                <!-- Checkbox "Not Control" ถูกเพิ่มเข้ามาใน Modal นี้ -->
+                <div class="flex items-center">
+                    <input type="checkbox" id="not-control-checkbox" class="mr-2">
+                    <label for="not-control-checkbox" class="text-sm font-medium text-gray-700">Not Control</label>
+                </div>
+            </form>
+            <div class="flex justify-between mt-4">
+                <button onclick="deleteProduct()" id="delete-product-btn" class="bg-red-500 text-white px-4 py-2 rounded-md hover:bg-red-600 transition-colors">ลบสินค้า</button>
+                <div class="flex space-x-2">
+                    <button onclick="closeProductFormModal()" class="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300">ยกเลิก</button>
+                    <button onclick="saveProduct()" class="px-4 py-2 bg-yellow-500 text-white rounded-md hover:bg-yellow-600">บันทึก</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // กำหนดข้อมูลเริ่มต้นสำหรับสินค้า
+        const initialProducts = [
+            { id: '1', itemCode: 'M001', system: 'IT', shelfLockNo: 'A1-01', name: 'เมาส์ไร้สาย', stock: 150, minLevel: 50, maxLevel: 200, unit: 'ตัว', imageUrl: 'https://placehold.co/150x150/000000/FFFFFF?text=Mouse', notControl: false, pricePerUnit: 250.00 },
+            { id: '2', itemCode: 'K002', system: 'IT', shelfLockNo: 'A1-02', name: 'คีย์บอร์ดเกมมิ่ง', stock: 35, minLevel: 20, maxLevel: 50, unit: 'ชิ้น', imageUrl: 'https://placehold.co/150x150/000000/FFFFFF?text=Keyboard', notControl: false, pricePerUnit: 1200.50 },
+            { id: '3', itemCode: 'H003', system: 'IT', shelfLockNo: 'B2-01', name: 'หูฟังบลูทูธ', stock: 15, minLevel: 10, maxLevel: 30, unit: 'อัน', imageUrl: 'https://placehold.co/150x150/000000/FFFFFF?text=Headset', notControl: false, pricePerUnit: 890.00 },
+            { id: '4', itemCode: 'S004', system: 'Logistics', shelfLockNo: 'B2-02', name: 'ลำโพงพกพา', stock: 65, minLevel: 30, maxLevel: 100, unit: 'เครื่อง', imageUrl: 'https://placehold.co/150x150/000000/FFFFFF?text=Speaker', notControl: true, pricePerUnit: 1500.00 },
+            { id: '5', itemCode: 'P005', system: 'Logistics', shelfLockNo: 'C3-05', name: 'เครื่องพิมพ์เอกสาร', stock: 12, minLevel: 15, maxLevel: 25, unit: 'เครื่อง', imageUrl: 'https://placehold.co/150x150/000000/FFFFFF?text=Printer', notControl: false, pricePerUnit: 4500.00 },
+        ];
+
+        let chartInstance = null; // ตัวแปรสำหรับเก็บ Instance ของ Chart.js
+
+        // ฟังก์ชันสำหรับเก็บข้อมูลลงใน Local Storage
+        const saveData = (key, data) => {
+            localStorage.setItem(key, JSON.stringify(data));
+        };
+
+        // ฟังก์ชันสำหรับดึงข้อมูลจาก Local Storage
+        const getData = (key) => {
+            const data = localStorage.getItem(key);
+            return data ? JSON.parse(data) : null;
+        };
+
+        // ฟังก์ชันสำหรับแสดง Modal ของการเบิก/เติมสต็อก
+        const showStockModal = (title, callback) => {
+            const modal = document.getElementById('stock-modal');
+            document.getElementById('stock-modal-title').textContent = title;
+            document.getElementById('stock-modal-quantity').value = '';
+            document.getElementById('stock-modal-name').value = '';
+
+            const confirmBtn = document.getElementById('stock-modal-confirm-btn');
+            const cancelBtn = document.getElementById('stock-modal-cancel-btn');
+
+            confirmBtn.onclick = null;
+            cancelBtn.onclick = null;
+
+            confirmBtn.onclick = () => {
+                const quantity = parseInt(document.getElementById('stock-modal-quantity').value);
+                const name = document.getElementById('stock-modal-name').value;
+                if (!isNaN(quantity) && quantity > 0 && name.trim() !== '') {
+                    callback(quantity, name);
+                    modal.classList.add('hidden');
+                } else {
+                    alert('กรุณากรอกข้อมูลให้ครบถ้วนและถูกต้อง');
+                }
+            };
+            cancelBtn.onclick = () => {
+                modal.classList.add('hidden');
+            };
+
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+        };
+
+        // ฟังก์ชันสำหรับแสดง Modal เพิ่ม/แก้ไขสินค้า
+        const openProductFormModal = (productId = null) => {
+            const modal = document.getElementById('product-form-modal');
+            const formTitle = document.getElementById('product-form-modal-title');
+            const productForm = document.getElementById('product-form');
+            const notControlCheckbox = document.getElementById('not-control-checkbox');
+            const deleteButton = document.getElementById('delete-product-btn');
+            
+            // ล้างข้อมูลในฟอร์ม
+            productForm.reset();
+            document.getElementById('product-id-input').value = '';
+            deleteButton.style.display = 'none'; // ซ่อนปุ่มลบเริ่มต้น
+
+            if (productId) {
+                // โหมดแก้ไข: ดึงข้อมูลสินค้ามาแสดงในฟอร์ม
+                const products = getData('products');
+                const product = products.find(p => p.id === productId);
+                if (product) {
+                    formTitle.textContent = 'แก้ไขข้อมูลสินค้า';
+                    document.getElementById('product-id-input').value = product.id;
+                    document.getElementById('item-code').value = product.itemCode;
+                    document.getElementById('item-name').value = product.name;
+                    document.getElementById('system').value = product.system;
+                    document.getElementById('shelf-lock-no').value = product.shelfLockNo;
+                    document.getElementById('image-url').value = product.imageUrl;
+                    document.getElementById('unit').value = product.unit;
+                    document.getElementById('min-level').value = product.minLevel;
+                    document.getElementById('max-level').value = product.maxLevel;
+                    document.getElementById('current-stock').value = product.stock;
+                    document.getElementById('price-per-unit').value = product.pricePerUnit;
+                    notControlCheckbox.checked = product.notControl;
+                    deleteButton.style.display = 'block'; // แสดงปุ่มลบเมื่ออยู่ในโหมดแก้ไข
+                }
+            } else {
+                // โหมดเพิ่มสินค้าใหม่
+                formTitle.textContent = 'เพิ่มสินค้าใหม่';
+                document.getElementById('current-stock').value = 0;
+                document.getElementById('price-per-unit').value = '';
+                notControlCheckbox.checked = false;
+            }
+
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+        };
+
+        // ฟังก์ชันสำหรับปิด Modal เพิ่ม/แก้ไขสินค้า
+        const closeProductFormModal = () => {
+            document.getElementById('product-form-modal').classList.add('hidden');
+        };
+        
+        // ฟังก์ชันสำหรับลบสินค้า
+        const deleteProduct = () => {
+            if (confirm('คุณแน่ใจหรือไม่ที่จะลบสินค้านี้?')) {
+                const productId = document.getElementById('product-id-input').value;
+                let products = getData('products');
+                products = products.filter(p => p.id !== productId);
+                saveData('products', products);
+                closeProductFormModal();
+                renderAll();
+            }
+        };
+
+        // ฟังก์ชันสำหรับบันทึก/แก้ไขสินค้า
+        const saveProduct = () => {
+            const productId = document.getElementById('product-id-input').value;
+            const itemCode = document.getElementById('item-code').value;
+            const name = document.getElementById('item-name').value;
+            const system = document.getElementById('system').value;
+            const shelfLockNo = document.getElementById('shelf-lock-no').value;
+            const imageUrl = document.getElementById('image-url').value || 'https://placehold.co/150x150/000000/FFFFFF?text=No+Image';
+            const unit = document.getElementById('unit').value;
+            const minLevel = parseInt(document.getElementById('min-level').value) || 0;
+            const maxLevel = parseInt(document.getElementById('max-level').value) || 0;
+            const stock = parseInt(document.getElementById('current-stock').value) || 0;
+            const pricePerUnit = parseFloat(document.getElementById('price-per-unit').value) || 0.00;
+            const notControl = document.getElementById('not-control-checkbox').checked;
+
+            if (itemCode && name && unit) {
+                let products = getData('products');
+                
+                if (productId) {
+                    // แก้ไขสินค้า
+                    const productIndex = products.findIndex(p => p.id === productId);
+                    if (productIndex !== -1) {
+                        products[productIndex] = {
+                            ...products[productIndex],
+                            itemCode,
+                            name,
+                            system,
+                            shelfLockNo,
+                            imageUrl,
+                            unit,
+                            minLevel,
+                            maxLevel,
+                            stock,
+                            pricePerUnit,
+                            notControl
+                        };
+                    }
+                } else {
+                    // เพิ่มสินค้าใหม่
+                    const newId = (products.length > 0 ? Math.max(...products.map(p => parseInt(p.id))) + 1 : 1).toString();
+                    products.push({
+                        id: newId,
+                        itemCode,
+                        name,
+                        system,
+                        shelfLockNo,
+                        imageUrl,
+                        unit,
+                        minLevel,
+                        maxLevel,
+                        stock,
+                        pricePerUnit,
+                        notControl
+                    });
+                }
+                
+                saveData('products', products);
+                closeProductFormModal();
+                renderAll();
+            } else {
+                alert('กรุณากรอกข้อมูลที่จำเป็น (รหัสสินค้า, ชื่อ, หน่วยนับ)');
+            }
+        };
+
+        // ฟังก์ชันสำหรับสร้างและแสดงกราฟ
+        const renderChart = (transactions) => {
+            const labels = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
+            const data = new Array(12).fill(0);
+            
+            // จัดกลุ่มข้อมูลการเบิกตามเดือน
+            const monthlyWithdrawals = transactions.reduce((acc, trans) => {
+                const date = new Date(trans.timestamp);
+                const month = date.getMonth(); // 0-11
+                if (trans.type === 'withdraw') {
+                    acc[month] = (acc[month] || 0) + trans.quantity;
+                }
+                return acc;
+            }, {});
+
+            for (const month in monthlyWithdrawals) {
+                if (monthlyWithdrawals.hasOwnProperty(month)) {
+                    data[month] = monthlyWithdrawals[month];
+                }
+            }
+
+            const ctx = document.getElementById('withdrawalsChart').getContext('2d');
+            
+            if (chartInstance) {
+                chartInstance.destroy();
+            }
+
+            chartInstance = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'จำนวนการเบิกสินค้า (ชิ้น)',
+                        data: data,
+                        backgroundColor: 'rgba(251, 191, 36, 0.7)',
+                        borderColor: '#fbbf24',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: 'จำนวน (ชิ้น)'
+                            }
+                        },
+                        x: {
+                            title: {
+                                display: true,
+                                text: 'เดือน'
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    }
+                }
+            });
+        };
+
+        // ฟังก์ชันสำหรับแสดงรายการสินค้า
+        const renderProducts = () => {
+            const productList = document.getElementById('product-list');
+            productList.innerHTML = '';
+            
+            const products = getData('products') || [];
+            const selectedCategory = document.getElementById('category-filter').value;
+            const searchTerm = document.getElementById('search-input').value.toLowerCase(); // ดึงคำค้นหาและแปลงเป็นตัวพิมพ์เล็ก
+
+            // กรองสินค้าตามหมวดหมู่และคำค้นหา
+            const filteredProducts = products.filter(product => {
+                const matchesCategory = (selectedCategory === 'all' || product.system === selectedCategory);
+                // ตรวจสอบว่าชื่อสินค้าหรือชั้น/ล็อค มีคำค้นหาหรือไม่ (ไม่คำนึงถึงตัวพิมพ์เล็ก-ใหญ่)
+                const productNameLower = (product.name || '').toLowerCase();
+                const shelfLockNoLower = (product.shelfLockNo || '').toLowerCase();
+
+                const matchesSearch = productNameLower.includes(searchTerm) || 
+                                      shelfLockNoLower.includes(searchTerm);
+                return matchesCategory && matchesSearch;
+            });
+
+            filteredProducts.forEach(product => {
+                const isLowStock = product.stock <= product.minLevel;
+                const cardClasses = isLowStock && !product.notControl ? 'border-2 border-red-500' : '';
+                const notControlClasses = product.notControl ? 'bg-yellow-100 text-red-600' : 'bg-gray-50';
+
+                const card = `
+                    <div class="p-4 rounded-lg shadow ${notControlClasses} ${cardClasses}">
+                        <div class="flex items-center space-x-4 mb-4">
+                            <img src="${product.imageUrl}" alt="${product.name}" class="w-16 h-16 rounded-md object-cover">
+                            <div class="flex-1">
+                                <h3 class="font-semibold text-lg">${product.name}</h3>
+                                <p class="text-xs text-gray-500">รหัส: ${product.itemCode} | ชั้น/ล็อค: ${product.shelfLockNo}</p>
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-2 gap-2 text-sm text-gray-600 mb-4">
+                            <div>คงเหลือ: <span class="font-bold ${isLowStock ? 'text-red-500' : 'text-green-600'}">${product.stock}</span> ${product.unit}</div>
+                            <div>Min: ${product.minLevel} | Max: ${product.maxLevel}</div>
+                            <div>ราคา/หน่วย: ${product.pricePerUnit ? product.pricePerUnit.toFixed(2) : 'N/A'} บาท</div>
+                        </div>
+                        ${isLowStock && !product.notControl ? `<p class="text-xs text-red-500 font-medium mb-4"><i class="fas fa-exclamation-triangle mr-1"></i>สต็อกต่ำกว่าระดับขั้นต่ำ!</p>` : ''}
+                        
+                        <div class="flex justify-between items-center space-x-2">
+                            <div class="flex space-x-2">
+                                <button onclick="handleWithdraw('${product.id}')" class="bg-red-500 text-white text-sm font-medium py-1 px-3 rounded-md hover:bg-red-600 transition-colors">เบิก</button>
+                                <button onclick="handleAddStock('${product.id}')" class="bg-green-500 text-white text-sm font-medium py-1 px-3 rounded-md hover:bg-green-600 transition-colors">เติม</button>
+                            </div>
+                            <div class="flex items-center space-x-2">
+                                <button onclick="openProductFormModal('${product.id}')" class="bg-gray-300 text-gray-800 text-sm font-medium py-1 px-3 rounded-md hover:bg-gray-400 transition-colors">
+                                    <i class="fas fa-edit"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                productList.innerHTML += card;
+            });
+        };
+
+        // ฟังก์ชันสำหรับแสดงประวัติการทำรายการ
+        const renderTransactions = (transactions) => {
+            const historyList = document.getElementById('transaction-history');
+            historyList.innerHTML = '';
+            
+            transactions.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+
+            transactions.forEach(transaction => {
+                const typeText = transaction.type === 'withdraw' ? 'เบิก' : 'เติม';
+                const typeColor = transaction.type === 'withdraw' ? 'text-red-500' : 'text-green-500';
+                const date = new Date(transaction.timestamp).toLocaleString('th-TH');
+                const historyItem = `
+                    <div class="p-3 bg-gray-50 rounded-lg text-sm">
+                        <p><span class="font-bold ${typeColor}">${typeText}</span> ${transaction.productName} จำนวน ${transaction.quantity} ${transaction.unit}</p>
+                        <p class="text-gray-500 text-xs mt-1">โดย: ${transaction.performer} เมื่อ: ${date}</p>
+                    </div>
+                `;
+                historyList.innerHTML += historyItem;
+            });
+        };
+        
+        // ฟังก์ชันจัดการการเบิกสินค้า
+        const handleWithdraw = (productId) => {
+            showStockModal('เบิกสินค้า', (quantity, name) => {
+                let products = getData('products');
+                let transactions = getData('transactions');
+                const product = products.find(p => p.id === productId);
+
+                if (product.stock >= quantity) {
+                    product.stock -= quantity;
+                    transactions.push({
+                        type: 'withdraw',
+                        productId: productId,
+                        productName: product.name,
+                        quantity: quantity,
+                        performer: name,
+                        timestamp: new Date().toISOString(),
+                        unit: product.unit
+                    });
+                    saveData('products', products);
+                    saveData('transactions', transactions);
+                    renderAll();
+                } else {
+                    alert('สินค้ามีไม่เพียงพอ');
+                }
+            });
+        };
+
+        // ฟังก์ชันจัดการการเติมสินค้า
+        const handleAddStock = (productId) => {
+            showStockModal('เติมสินค้า', (quantity, name) => {
+                let products = getData('products');
+                let transactions = getData('transactions');
+                const product = products.find(p => p.id === productId);
+                
+                product.stock += quantity;
+                transactions.push({
+                    type: 'add',
+                    productId: productId,
+                    productName: product.name,
+                    quantity: quantity,
+                    performer: name,
+                    timestamp: new Date().toISOString(),
+                    unit: product.unit
+                });
+                saveData('products', products);
+                saveData('transactions', transactions);
+                renderAll();
+            });
+        };
+        
+        // ฟังก์ชันสำหรับเติมตัวเลือกใน dropdown filter
+        const populateCategoryFilter = (products) => {
+            const filterElement = document.getElementById('category-filter');
+            filterElement.innerHTML = '<option value="all">ทั้งหมด</option>';
+            const categories = [...new Set(products.map(p => p.system))].sort(); // Sort categories alphabetically
+            categories.forEach(category => {
+                const option = document.createElement('option');
+                option.value = category;
+                option.textContent = category;
+                filterElement.appendChild(option);
+            });
+        };
+
+        // ฟังก์ชันสำหรับ Export ข้อมูลการทำรายการเป็น CSV
+        const exportTransactionsToCsv = () => {
+            const transactions = getData('transactions') || [];
+            if (transactions.length === 0) {
+                alert('ไม่มีข้อมูลการทำรายการให้ออกรายงาน');
+                return;
+            }
+
+            let csvContent = "Type,Product Name,Quantity,Unit,Performer,Timestamp\n"; // CSV Headers
+
+            transactions.forEach(transaction => {
+                const typeText = transaction.type === 'withdraw' ? 'เบิก' : 'เติม';
+                const timestamp = new Date(transaction.timestamp).toLocaleString('th-TH');
+                
+                // Escape commas in string fields by wrapping them in double quotes
+                const productName = `"${transaction.productName.replace(/"/g, '""')}"`;
+                const performer = `"${transaction.performer.replace(/"/g, '""')}"`;
+                const unit = `"${transaction.unit.replace(/"/g, '""')}"`;
+
+                csvContent += `${typeText},${productName},${transaction.quantity},${unit},${performer},${timestamp}\n`;
+            });
+
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            if (link.download !== undefined) { // Feature detection for HTML5 download attribute
+                const url = URL.createObjectURL(blob);
+                link.setAttribute('href', url);
+                link.setAttribute('download', 'transactions_report.csv');
+                link.style.visibility = 'hidden';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            } else {
+                alert('เบราว์เซอร์ของคุณไม่รองรับการดาวน์โหลดไฟล์โดยตรง กรุณาคัดลอกข้อมูลในหน้าต่างนี้:\n\n' + csvContent);
+            }
+        };
+
+
+        // ฟังก์ชันหลักสำหรับเรียกแสดงผลทั้งหมด
+        const renderAll = () => {
+            const products = getData('products') || initialProducts;
+            const transactions = getData('transactions') || [];
+            
+            saveData('products', products);
+            saveData('transactions', transactions);
+            
+            populateCategoryFilter(products);
+            renderProducts(); // เรียก renderProducts โดยไม่ต้องส่ง products เข้าไป เพราะจะดึงจาก getData() เอง
+            renderTransactions(transactions);
+            renderChart(transactions);
+        };
+
+        // เมื่อหน้าเว็บโหลดเสร็จสมบูรณ์
+        window.onload = () => {
+            if (!getData('products')) {
+                saveData('products', initialProducts);
+            }
+            if (!getData('transactions')) {
+                saveData('transactions', []);
+            }
+            // เรียก populateCategoryFilter เพียงครั้งเดียวตอนโหลดหน้าเว็บ
+            const products = getData('products') || initialProducts;
+            populateCategoryFilter(products);
+            renderAll();
+        };
+
+    </script>
+</body>
+</html>
